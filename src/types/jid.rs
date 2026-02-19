@@ -37,7 +37,12 @@ impl Jid {
     }
 
     /// New AD-JID (user.agent:device@server) for device-specific addressing.
-    pub fn new_ad(user: impl Into<String>, agent: u8, device: u16, server: impl Into<String>) -> Self {
+    pub fn new_ad(
+        user: impl Into<String>,
+        agent: u8,
+        device: u16,
+        server: impl Into<String>,
+    ) -> Self {
         Self {
             user: user.into(),
             raw_agent: agent,
@@ -53,10 +58,18 @@ impl Jid {
     }
 
     /// Well-known JIDs.
-    pub fn group_server() -> Self { Self::server(GROUP_SERVER) }
-    pub fn default_server() -> Self { Self::server(DEFAULT_USER_SERVER) }
-    pub fn broadcast_server() -> Self { Self::server(BROADCAST_SERVER) }
-    pub fn status_broadcast() -> Self { Self::new("status", BROADCAST_SERVER) }
+    pub fn group_server() -> Self {
+        Self::server(GROUP_SERVER)
+    }
+    pub fn default_server() -> Self {
+        Self::server(DEFAULT_USER_SERVER)
+    }
+    pub fn broadcast_server() -> Self {
+        Self::server(BROADCAST_SERVER)
+    }
+    pub fn status_broadcast() -> Self {
+        Self::new("status", BROADCAST_SERVER)
+    }
 
     /// User part as u64 (for normal user JIDs).
     pub fn user_int(&self) -> u64 {
@@ -142,7 +155,11 @@ impl std::error::Error for JidParseError {}
 impl fmt::Display for Jid {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.raw_agent > 0 {
-            write!(f, "{}.{}:{}@{}", self.user, self.raw_agent, self.device, self.server)
+            write!(
+                f,
+                "{}.{}:{}@{}",
+                self.user, self.raw_agent, self.device, self.server
+            )
         } else if self.device > 0 {
             write!(f, "{}:{}@{}", self.user, self.device, self.server)
         } else if !self.user.is_empty() {

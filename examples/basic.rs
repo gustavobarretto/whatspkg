@@ -13,26 +13,23 @@ async fn main() -> anyhow::Result<()> {
     let client = Client::new(store);
 
     client
-        .add_event_handler(|evt| {
-            match evt {
-                whatspkg::Event::Qr { codes } => {
-                    println!("[Event] QR codes (scan with WhatsApp Linked Devices): {:?}", codes);
-                }
-                whatspkg::Event::Connected => {
-                    println!("[Event] Connected and logged in.");
-                }
-                whatspkg::Event::PairSuccess {
-                    id,
-                    platform,
-                    ..
-                } => {
-                    println!("[Event] Pair success: {} on {}", id, platform);
-                }
-                whatspkg::Event::Disconnected { reason } => {
-                    println!("[Event] Disconnected: {}", reason);
-                }
-                _ => {}
+        .add_event_handler(|evt| match evt {
+            whatspkg::Event::Qr { codes } => {
+                println!(
+                    "[Event] QR codes (scan with WhatsApp Linked Devices): {:?}",
+                    codes
+                );
             }
+            whatspkg::Event::Connected => {
+                println!("[Event] Connected and logged in.");
+            }
+            whatspkg::Event::PairSuccess { id, platform, .. } => {
+                println!("[Event] Pair success: {} on {}", id, platform);
+            }
+            whatspkg::Event::Disconnected { reason } => {
+                println!("[Event] Disconnected: {}", reason);
+            }
+            _ => {}
         })
         .await;
 

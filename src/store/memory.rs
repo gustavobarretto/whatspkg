@@ -1,5 +1,5 @@
 use super::{Device, DeviceStore};
-use crate::{Result, error::StoreError};
+use crate::{error::StoreError, Result};
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::sync::RwLock;
@@ -32,15 +32,25 @@ impl Default for MemoryStore {
 #[async_trait]
 impl DeviceStore for MemoryStore {
     async fn get_first_device(&self) -> Result<Option<Device>> {
-        let first = self.first_jid.read().map_err(|e| StoreError::Load(e.to_string()))?.clone();
+        let first = self
+            .first_jid
+            .read()
+            .map_err(|e| StoreError::Load(e.to_string()))?
+            .clone();
         let default_key = Self::first_jid_key();
         let key = first.as_deref().unwrap_or_else(|| default_key.as_str());
-        let devices = self.devices.read().map_err(|e| StoreError::Load(e.to_string()))?;
+        let devices = self
+            .devices
+            .read()
+            .map_err(|e| StoreError::Load(e.to_string()))?;
         Ok(devices.get(key).cloned())
     }
 
     async fn get_device(&self, jid: &crate::types::Jid) -> Result<Option<Device>> {
-        let devices = self.devices.read().map_err(|e| StoreError::Load(e.to_string()))?;
+        let devices = self
+            .devices
+            .read()
+            .map_err(|e| StoreError::Load(e.to_string()))?;
         Ok(devices.get(&jid.to_string()).cloned())
     }
 
@@ -51,7 +61,10 @@ impl DeviceStore for MemoryStore {
             .map(|j| j.to_string())
             .unwrap_or_else(Self::first_jid_key);
         if device.id.is_some() {
-            *self.first_jid.write().map_err(|e| StoreError::Save(e.to_string()))? = Some(key.clone());
+            *self
+                .first_jid
+                .write()
+                .map_err(|e| StoreError::Save(e.to_string()))? = Some(key.clone());
         }
         self.devices
             .write()
@@ -62,8 +75,14 @@ impl DeviceStore for MemoryStore {
 
     async fn delete(&self, jid: &crate::types::Jid) -> Result<()> {
         let key = jid.to_string();
-        self.devices.write().map_err(|e| StoreError::Save(e.to_string()))?.remove(&key);
-        let mut first = self.first_jid.write().map_err(|e| StoreError::Save(e.to_string()))?;
+        self.devices
+            .write()
+            .map_err(|e| StoreError::Save(e.to_string()))?
+            .remove(&key);
+        let mut first = self
+            .first_jid
+            .write()
+            .map_err(|e| StoreError::Save(e.to_string()))?;
         if *first == Some(key) {
             *first = None;
         }
@@ -71,7 +90,10 @@ impl DeviceStore for MemoryStore {
     }
 
     async fn get_all_devices(&self) -> Result<Vec<Device>> {
-        let devices = self.devices.read().map_err(|e| StoreError::Load(e.to_string()))?;
+        let devices = self
+            .devices
+            .read()
+            .map_err(|e| StoreError::Load(e.to_string()))?;
         Ok(devices
             .values()
             .filter(|d| d.id.is_some())
@@ -93,7 +115,10 @@ mod tests {
 
         store.save(&dev).await.unwrap();
         let loaded = store.get_first_device().await.unwrap().unwrap();
-        assert_eq!(loaded.id.as_ref().unwrap().to_string(), "123@s.whatsapp.net");
+        assert_eq!(
+            loaded.id.as_ref().unwrap().to_string(),
+            "123@s.whatsapp.net"
+        );
     }
 
     #[tokio::test]
