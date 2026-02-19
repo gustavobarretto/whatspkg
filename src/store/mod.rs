@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use std::sync::Arc;
 
 /// Device identity and keys for one linked device (whatsmeow store.Device).
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Device {
     /// Our JID after pairing (None if not paired).
     pub id: Option<Jid>,
@@ -29,24 +29,6 @@ pub struct Device {
     pub registration_id: u32,
     /// Signed prekey ID.
     pub signed_prekey_id: u32,
-}
-
-impl Default for Device {
-    fn default() -> Self {
-        Self {
-            id: None,
-            lid: None,
-            business_name: None,
-            platform: None,
-            noise_key_pub: None,
-            identity_key_pub: None,
-            identity_key_priv: None,
-            adv_secret_key: None,
-            account: None,
-            registration_id: 0,
-            signed_prekey_id: 0,
-        }
-    }
 }
 
 impl Device {

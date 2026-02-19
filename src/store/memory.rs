@@ -38,7 +38,7 @@ impl DeviceStore for MemoryStore {
             .map_err(|e| StoreError::Load(e.to_string()))?
             .clone();
         let default_key = Self::first_jid_key();
-        let key = first.as_deref().unwrap_or_else(|| default_key.as_str());
+        let key = first.as_deref().unwrap_or(default_key.as_str());
         let devices = self
             .devices
             .read()

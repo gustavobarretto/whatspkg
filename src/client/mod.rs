@@ -14,6 +14,9 @@ use tokio::sync::{mpsc, RwLock};
 
 pub use send::{SendRequestExtra, SendResponse};
 
+/// Type alias for event handlers so the client field is not overly complex and is Send + Sync.
+type EventHandler = Box<dyn Fn(Event) + Send + Sync>;
+
 /// Default WebSocket URL for WhatsApp Web.
 pub const DEFAULT_WS_URL: &str = "wss://web.whatsapp.com/ws";
 
@@ -22,7 +25,7 @@ pub struct Client {
     store: Store,
     device: Arc<RwLock<Option<Device>>>,
     _event_tx: mpsc::UnboundedSender<Event>,
-    handlers: Arc<RwLock<Vec<Box<dyn Fn(Event) + Send>>>>,
+    handlers: Arc<RwLock<Vec<EventHandler>>>,
     connected: AtomicBool,
     logged_in: AtomicBool,
 }
@@ -44,7 +47,7 @@ impl Client {
     /// Add an event handler (called for every event). Mirrors AddEventHandler.
     pub async fn add_event_handler<F>(&self, f: F)
     where
-        F: Fn(Event) + Send + 'static,
+        F: Fn(Event) + Send + Sync + 'static,
     {
         self.handlers.write().await.push(Box::new(f));
     }
@@ -65,7 +68,7 @@ impl Client {
     pub async fn connect(&self) -> crate::Result<()> {
         self.load_device().await?;
         let device = self.device.read().await.clone();
-        if device.as_ref().map_or(true, |d| !d.is_logged_in()) {
+        if device.as_ref().is_none_or(|d| !d.is_logged_in()) {
             self.dispatch_event(Event::Qr {
                 codes: vec!["STUB_QR_CODE".to_string()],
             })
