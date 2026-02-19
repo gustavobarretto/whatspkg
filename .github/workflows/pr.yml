@@ -1,10 +1,13 @@
-# Runs on every PR: tests, lint, format, and incremental version check.
+# Runs on every PR and on every push to main/master: build, test, fmt, clippy.
+# On PRs to main/master only: version-bump check.
 # Require approval via branch protection (Settings → Branches → Add rule).
 
 name: PR checks
 
 on:
   pull_request:
+    branches: [main, master]
+  push:
     branches: [main, master]
 
 env:
@@ -42,8 +45,8 @@ jobs:
   version-bump:
     name: Version incremented
     runs-on: ubuntu-latest
-    # Only require version bump when targeting the default branch
-    if: github.base_ref == 'main' || github.base_ref == 'master'
+    # Only on PRs (no base/head comparison on push); only when targeting default branch
+    if: github.event_name == 'pull_request' && (github.base_ref == 'main' || github.base_ref == 'master')
     steps:
       - uses: actions/checkout@v4
         with:
