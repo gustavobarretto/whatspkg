@@ -1,0 +1,81 @@
+# Runs on every PR: tests, lint, format, and incremental version check.
+# Require approval via branch protection (Settings → Branches → Add rule).
+
+name: PR checks
+
+on:
+  pull_request:
+    branches: [main, master]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-and-test:
+    name: Build & test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-action@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "pr"
+
+      - name: Check format
+        run: cargo fmt --all -- --check
+
+      - name: Build
+        run: cargo build --verbose
+
+      - name: Run tests
+        run: cargo test --verbose
+
+      - name: Clippy
+        run: cargo clippy --verbose -- -D warnings
+
+  version-bump:
+    name: Version incremented
+    runs-on: ubuntu-latest
+    # Only require version bump when targeting the default branch
+    if: github.base_ref == 'main' || github.base_ref == 'master'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get base version
+        id: base
+        run: |
+          git fetch origin ${{ github.base_ref }}
+          BASE_VERSION=$(git show origin/${{ github.base_ref }}:Cargo.toml 2>/dev/null | grep '^version = ' | sed -n 's/^version = "\(.*\)"$/\1/p' || echo "0.0.0")
+          echo "version=$BASE_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Get PR version
+        id: pr
+        run: |
+          PR_VERSION=$(grep '^version = ' Cargo.toml | sed -n 's/^version = "\(.*\)"$/\1/p')
+          echo "version=$PR_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Require version greater than base
+        run: |
+          BASE="${{ steps.base.outputs.version }}"
+          PR="${{ steps.pr.outputs.version }}"
+          echo "Base branch version: $BASE"
+          echo "PR version: $PR"
+          # sort -V puts the smaller version first; we need PR > BASE
+          SMALLER=$(printf '%s\n%s' "$BASE" "$PR" | sort -V | head -n1)
+          if [ "$BASE" = "$PR" ]; then
+            echo "::error::Version must be incremented. Base: $BASE, PR: $PR. Bump version in Cargo.toml."
+            exit 1
+          fi
+          if [ "$SMALLER" = "$PR" ]; then
+            echo "::error::Version must be greater than base ($BASE). Current: $PR."
+            exit 1
+          fi
+          echo "Version OK: $PR > $BASE"

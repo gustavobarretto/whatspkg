@@ -1,0 +1,27 @@
+# Build output
+/target/
+
+# Cargo lock: optional for libraries (uncomment to ignore)
+# Cargo.lock
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local env / secrets (if you add any later)
+.env
+.env.local
+*.pem
+
+# Debug / coverage
+*.log
+coverage/
+*.profraw
+*.profdata

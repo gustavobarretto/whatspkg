@@ -64,9 +64,47 @@ async fn main() -> anyhow::Result<()> {
 | `socket/`         | (future)          |
 | `send.go`         | `client/send.rs`  |
 
+## To-Do (full implementation)
+
+The following list is need to implement to reach full feature. Items are ordered by dependency where it helps.
+
+| Area | Task | Reference (whatsmeow) | Notes |
+|------|------|----------------------|--------|
+| **Binary protocol** | Implement `Node::encode()` and `Node::decode()` for the custom binary XML-like format. | `binary/` | Required for all wire communication. |
+| **Socket layer** | Add WebSocket client (e.g. `tokio-tungstenite`) and frame binary nodes over the connection. | `socket/` | Connects to WhatsApp Web endpoints. |
+| **Noise protocol** | Implement Noise handshake and transport; encrypt/decrypt frames before/after WebSocket. | `socket/`, handshake | Use a Noise crate (e.g. `snow`) compatible with WhatsApp’s pattern. |
+| **Pairing crypto** | Complete `complete_pairing()`: verify device identity (HMAC/signatures), generate device signature, persist identity. | `pair.go`, `handshake.go`, `util/keys` | Needs ECC/signing (e.g. X25519, Ed25519) and HMAC. |
+| **Signal / E2E** | Integrate Signal protocol: session setup, prekeys, identity store, encrypt/decrypt message payloads. | `go.mau.fi/libsignal`, whatsmeow usage | Use a Rust Signal impl or bindings; store identities per `store::DeviceStore`. |
+| **Protobuf** | Add WhatsApp protobuf definitions (waE2E, waWeb, etc.), generate Rust with `prost` (or similar). | `proto/` | Needed for message content, app state, and server nodes. |
+| **Real connect** | Wire socket + Noise + binary nodes into `Client`: open connection, handle stream, emit Connected / Disconnected. | `client.go`, `connectionevents.go` | Replace stub `connect()` / `send_node()`. |
+| **Real pairing** | Emit real QR payloads from server; handle pair-device / pair-success; call `complete_pairing()` with parsed data. | `pair.go`, `qrchan.go` | Depends on binary + socket + pairing crypto. |
+| **Send message** | Implement `send_message()` over the wire: build E2E message, send node, wait for ack. | `send.go`, `message.go` | Depends on Signal, binary, socket. |
+| **Receive messages** | Decode incoming nodes, decrypt E2E payloads, emit `Event::Message` (and related). | `message.go`, handlers in `client.go` | Depends on binary, socket, Signal, protos. |
+| **Receipts** | Send and handle delivery/read receipts; emit `Event::Receipt`. | `receipt.go` | Depends on node send/receive. |
+| **Groups** | Group metadata, participants, invite links, group messages. | `group.go` | Depends on nodes + protos. |
+| **App state** | Read/write app state (contacts, pin/mute, etc.). | `appstate/`, app state nodes | Depends on nodes + protos. |
+| **Retry receipts** | Handle retry requests when decryption fails; resend or provide plaintext. | `retry.go`, `GetMessageForRetry` | Depends on message send/receive. |
+| **Persistent store** | Implement `DeviceStore` (and identity/session stores) backed by SQLite or similar. | `store/sqlstore` | Enables restarts without re-pairing. |
+
+Contributors can pick any item and implement it step by step; see [CONTRIBUTING.md](CONTRIBUTING.md) for how to open issues and PRs.
+
+## Contributing
+
+See **[CONTRIBUTING.md](CONTRIBUTING.md)** for how to contribute and where to start. Pull requests run CI on every push:
+
+- **Build & test**: `cargo build`, `cargo test`, `cargo fmt --check`, `cargo clippy`
+- **Version bump**: When the PR targets `main`/`master`, the version in `Cargo.toml` must be **greater** than the base branch (e.g. `0.1.0` → `0.1.1`). The workflow fails if the version is unchanged or lower.
+
+To **require approval** before merging:
+
+1. GitHub repo → **Settings** → **Branches**
+2. **Add branch protection rule** (or edit existing) for `main` (or `master`)
+3. Enable **Require a pull request before merging** and set **Required number of approvals** (e.g. 1)
+4. Optionally enable **Require status checks to pass** and select **Build & test** and **Version incremented** so merge is only allowed when CI passes
+
 ## License
 
-MPL-2.0 (same as whatsmeow). See [LICENSE](LICENSE).
+MPL-2.0. See [LICENSE](LICENSE).
 
 ## References
 
