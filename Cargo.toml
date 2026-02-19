@@ -1,10 +1,10 @@
 [package]
-name = "whatspkg"
+name = "whatsapp-pkg"
 version = "0.1.0"
 edition = "2021"
-description = "Rust library for the WhatsApp web multidevice API (whatsmeow-style)"
+description = "Rust library for the WhatsApp web multidevice API"
 license = "MPL-2.0"
-repository = "https://github.com/tulir/whatsmeow"
+repository = "https://github.com/OWNER/whatsapp-pkg"
 readme = "README.md"
 keywords = ["whatsapp", "messaging", "multidevice", "api"]
 categories = ["network-programming", "api-bindings"]
@@ -24,11 +24,15 @@ rand = "0.8"
 sha2 = "0.10"
 hmac = "0.12"
 hex = "0.4"
+ed25519-dalek = { version = "2", features = ["rand_core"] }
+x25519-dalek = { version = "2", features = ["static_secrets"] }
 prost = "0.13"
 # Optional: TLS and WebSocket for real connection
 tokio-tungstenite = { version = "0.24", optional = true }
 rustls = { version = "0.23", optional = true }
 rustls-pemfile = { version = "2", optional = true }
+# Noise protocol (WhatsApp uses XX_25519_AESGCM_SHA256)
+snow = { version = "0.10", optional = true }
 
 [dev-dependencies]
 tokio-test = "0.4"
@@ -36,4 +40,4 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 [features]
 default = []
-full = ["tokio-tungstenite", "rustls", "rustls-pemfile"]
+full = ["tokio-tungstenite", "rustls", "rustls-pemfile", "snow"]

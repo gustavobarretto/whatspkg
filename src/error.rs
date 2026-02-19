@@ -50,7 +50,7 @@ pub enum ConnectionError {
     ConnectFailure(ConnectFailureReason),
 }
 
-/// Reason code for connection failures (maps to whatsmeow ConnectFailureReason).
+/// Reason code for connection failures.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(i32)]
 pub enum ConnectFailureReason {

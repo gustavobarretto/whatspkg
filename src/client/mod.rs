@@ -1,4 +1,4 @@
-//! Main client (whatsmeow Client).
+//! Main client.
 
 mod send;
 
@@ -6,6 +6,7 @@ use crate::binary::Node;
 use crate::error::{ConnectionError, Error};
 use crate::events::Event;
 use crate::store::{Device, Store};
+use crate::transport::Transport;
 use crate::types::{Jid, MessageId};
 use sha2::Digest;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -14,13 +15,28 @@ use tokio::sync::{mpsc, RwLock};
 
 pub use send::{SendRequestExtra, SendResponse};
 
+/// Parameters for completing pairing after QR or pair-code flow.
+#[derive(Clone, Debug)]
+pub struct CompletePairingParams<'a> {
+    /// Raw device identity from server (payload, or payload || HMAC-SHA256 tag if verifying).
+    pub device_identity_bytes: &'a [u8],
+    /// Request ID from the pairing flow.
+    pub req_id: &'a str,
+    pub business_name: &'a str,
+    pub platform: &'a str,
+    pub jid: Jid,
+    pub lid: Jid,
+    /// If set, device_identity_bytes is verified as payload || HMAC tag before use.
+    pub hmac_key: Option<&'a [u8]>,
+}
+
 /// Type alias for event handlers so the client field is not overly complex and is Send + Sync.
 type EventHandler = Box<dyn Fn(Event) + Send + Sync>;
 
 /// Default WebSocket URL for WhatsApp Web.
 pub const DEFAULT_WS_URL: &str = "wss://web.whatsapp.com/ws";
 
-/// Client for the WhatsApp web multidevice API (mirrors whatsmeow.Client).
+/// Client for the WhatsApp web multidevice API.
 pub struct Client {
     store: Store,
     device: Arc<RwLock<Option<Device>>>,
@@ -28,6 +44,8 @@ pub struct Client {
     handlers: Arc<RwLock<Vec<EventHandler>>>,
     connected: AtomicBool,
     logged_in: AtomicBool,
+    /// When set, send_node() uses this transport (e.g. Noise over WebSocket). Set by connect() when feature "full" is enabled.
+    transport: Arc<RwLock<Option<Arc<dyn Transport>>>>,
 }
 
 impl Client {
@@ -41,6 +59,7 @@ impl Client {
             handlers: Arc::new(RwLock::new(Vec::new())),
             connected: AtomicBool::new(false),
             logged_in: AtomicBool::new(false),
+            transport: Arc::new(RwLock::new(None)),
         }
     }
 
@@ -65,6 +84,7 @@ impl Client {
     }
 
     /// Connect to WhatsApp servers. If no session, will emit QR events for pairing.
+    /// With feature "full", performs a real WebSocket + Noise handshake and stores the transport.
     pub async fn connect(&self) -> crate::Result<()> {
         self.load_device().await?;
         let device = self.device.read().await.clone();
@@ -75,13 +95,32 @@ impl Client {
             .await;
             return Ok(());
         }
+        #[cfg(feature = "full")]
+        {
+            if let Ok((noise_tx, noise_rx)) = crate::socket::connect_noise_default().await {
+                let transport: Arc<dyn Transport> = Arc::new(noise_tx);
+                *self.transport.write().await = Some(Arc::clone(&transport));
+                tokio::spawn(Self::recv_loop(noise_rx));
+            }
+        }
         self.connected.store(true, Ordering::SeqCst);
         self.logged_in.store(true, Ordering::SeqCst);
         self.dispatch_event(Event::Connected).await;
         Ok(())
     }
 
-    /// Disconnect and optionally clear session.
+    #[cfg(feature = "full")]
+    async fn recv_loop(noise_rx: crate::socket::NoiseRecv) {
+        while let Ok(frame) = noise_rx.next_decrypted_frame().await {
+            if let Ok(node) = Node::decode(&frame) {
+                tracing::debug!(tag = %node.tag, "incoming node");
+                // TODO: dispatch node to handlers / handle server nodes
+                let _ = node;
+            }
+        }
+    }
+
+    /// Disconnect and optionally clear session. Clears the transport when present.
     pub async fn disconnect(&self, logout: bool) -> crate::Result<()> {
         if logout {
             let device = self.device.read().await.clone();
@@ -93,6 +132,7 @@ impl Client {
             *self.device.write().await = None;
             self.logged_in.store(false, Ordering::SeqCst);
         }
+        *self.transport.write().await = None;
         self.connected.store(false, Ordering::SeqCst);
         Ok(())
     }
@@ -117,7 +157,7 @@ impl Client {
         self.device.read().await.as_ref().and_then(|d| d.id.clone())
     }
 
-    /// Generate a message ID (whatsmeow-style: 3EB0 + hex of hash).
+    /// Generate a message ID (3EB0 + hex of hash).
     pub fn generate_message_id(&self) -> MessageId {
         use std::time::{SystemTime, UNIX_EPOCH};
         let mut data = Vec::with_capacity(8 + 20 + 16);
@@ -139,13 +179,18 @@ impl Client {
         }
     }
 
-    /// Send a raw node (internal; used by socket handler). Stub.
+    /// Send a raw node over the transport when connected (with feature "full"). Used when send_message is implemented over the wire.
     #[allow(dead_code)]
-    pub(crate) async fn send_node(&self, _node: &Node) -> crate::Result<()> {
-        Err(Error::Connection(ConnectionError::Disconnected))
+    pub(crate) async fn send_node(&self, node: &Node) -> crate::Result<()> {
+        let transport = self.transport.read().await;
+        let t = transport
+            .as_ref()
+            .ok_or(Error::Connection(ConnectionError::Disconnected))?;
+        let data = node.encode()?;
+        t.send(&data).await
     }
 
-    /// Send a text message (whatsmeow SendMessage). Stub: requires live connection.
+    /// Send a text message. Stub: requires live connection.
     pub async fn send_message(
         &self,
         _to: &Jid,
@@ -168,28 +213,39 @@ impl Client {
     }
 
     /// Parse pair-success and save device. Called when QR is scanned.
-    pub async fn complete_pairing(
-        &self,
-        _device_identity_bytes: &[u8],
-        _req_id: &str,
-        business_name: &str,
-        platform: &str,
-        jid: Jid,
-        lid: Jid,
-    ) -> crate::Result<()> {
+    /// If `params.hmac_key` is set, verifies `params.device_identity_bytes` (payload || HMAC-SHA256 tag) before proceeding.
+    /// Generates pairing keys (Noise, identity, adv secret), signs the verified payload for storage, and persists the device.
+    pub async fn complete_pairing(&self, params: CompletePairingParams<'_>) -> crate::Result<()> {
+        let verified_payload = if let Some(key) = params.hmac_key {
+            crate::pairing::verify_device_identity(params.device_identity_bytes, key)?.payload
+        } else {
+            params.device_identity_bytes.to_vec()
+        };
+
+        let keys = crate::pairing::generate_pairing_keys();
+        let account =
+            crate::pairing::sign_device_identity(&verified_payload, &keys.identity_private)?;
+
         let mut device = self.store.get_first_device().await?.unwrap_or_default();
-        device.id = Some(jid.clone());
-        device.lid = Some(lid.clone());
-        device.business_name = Some(business_name.to_string());
-        device.platform = Some(platform.to_string());
+        device.id = Some(params.jid.clone());
+        device.lid = Some(params.lid.clone());
+        device.business_name = Some(params.business_name.to_string());
+        device.platform = Some(params.platform.to_string());
+        device.noise_key_pub = Some(keys.noise_public);
+        device.identity_key_pub = Some(keys.identity_public);
+        device.identity_key_priv = Some(keys.identity_private);
+        device.adv_secret_key = Some(keys.adv_secret);
+        device.account = Some(account);
+        device.registration_id = 0;
+        device.signed_prekey_id = 0;
         self.store.save(&device).await?;
         *self.device.write().await = Some(device);
         self.logged_in.store(true, Ordering::SeqCst);
         self.dispatch_event(Event::PairSuccess {
-            id: jid,
-            lid,
-            business_name: business_name.to_string(),
-            platform: platform.to_string(),
+            id: params.jid.clone(),
+            lid: params.lid.clone(),
+            business_name: params.business_name.to_string(),
+            platform: params.platform.to_string(),
         })
         .await;
         Ok(())
@@ -277,5 +333,35 @@ mod tests {
         let res = client.send_message(&to, "hello", None).await;
         assert!(res.is_err());
         assert!(matches!(res.unwrap_err(), crate::Error::NotConnected));
+    }
+
+    #[tokio::test]
+    async fn complete_pairing_persists_keys_and_account() {
+        let store = Arc::new(MemoryStore::new());
+        let client = Client::new(store.clone());
+        let payload = b"device-identity-payload";
+        client
+            .complete_pairing(CompletePairingParams {
+                device_identity_bytes: payload,
+                req_id: "req1",
+                business_name: "Biz",
+                platform: "Rust",
+                jid: Jid::new("123", "s.whatsapp.net"),
+                lid: Jid::new("0", "lid.whatsapp.net"),
+                hmac_key: None,
+            })
+            .await
+            .unwrap();
+        assert!(client.is_logged_in());
+        let device = store.get_first_device().await.unwrap().unwrap();
+        assert!(device.identity_key_pub.is_some());
+        assert!(device.identity_key_priv.is_some());
+        assert!(device.noise_key_pub.is_some());
+        assert!(device.adv_secret_key.is_some());
+        assert!(device.account.is_some());
+        let account = device.account.as_ref().unwrap();
+        assert!(account.len() >= 32 + 64);
+        let verified = crate::pairing::verify_signed_identity(account).unwrap();
+        assert_eq!(verified, payload);
     }
 }

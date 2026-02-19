@@ -1,9 +1,15 @@
-//! Binary protocol nodes (whatsmeow binary package).
-//! WhatsApp uses a custom binary XML-like node format over the Noise socket.
+//! Binary protocol nodes for the WhatsApp Web protocol.
+//! Custom binary XML-like node format over the Noise socket.
 
+mod consts;
+mod decoder;
+mod encoder;
+mod token;
+
+pub use consts::{NOISE_START_PATTERN, WA_CONN_HEADER, WA_MAGIC_VALUE};
 use std::collections::HashMap;
 
-/// Attributes on a node (key-value; values can be string, int, etc. in Go; we use string for simplicity).
+/// Attributes on a node (key-value; values are strings).
 pub type Attrs = HashMap<String, String>;
 
 /// Content of a node: either child nodes or raw bytes.
@@ -15,7 +21,7 @@ pub enum NodeContent {
     Bytes(Vec<u8>),
 }
 
-/// A single binary protocol node (mirrors waBinary.Node).
+/// A single binary protocol node.
 #[derive(Clone, Debug, Default)]
 pub struct Node {
     pub tag: String,
@@ -61,15 +67,71 @@ impl Node {
         }
     }
 
-    /// Encode to binary form (whatsmeow binary encoding). Stub: real impl would match Go binary.Writer.
+    /// Encode to binary form (LIST_8/16 + BINARY_8/20 for strings; no dictionary tokens).
     pub fn encode(&self) -> crate::Result<Vec<u8>> {
-        // TODO: implement binary encoding to match WhatsApp format
-        Err(crate::Error::Binary("encode not yet implemented".into()))
+        let mut out = Vec::new();
+        encoder::encode_node(self, &mut out)?;
+        Ok(out)
     }
 
-    /// Decode from binary form. Stub.
+    /// Decode a single node from binary form. Expects data to start with a list tag (LIST_8 or LIST_16).
     pub fn decode(data: &[u8]) -> crate::Result<Self> {
-        let _ = data;
-        Err(crate::Error::Binary("decode not yet implemented".into()))
+        decoder::decode(data)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn encode_decode_roundtrip_empty() {
+        let n = Node::new("iq");
+        let data = n.encode().unwrap();
+        let decoded = Node::decode(&data).unwrap();
+        assert_eq!(decoded.tag, "iq");
+        assert!(decoded.attrs.is_empty());
+        assert!(matches!(decoded.content, NodeContent::Empty));
+    }
+
+    #[test]
+    fn encode_decode_roundtrip_with_attrs() {
+        let n = Node::new("iq")
+            .with_attr("id", "1")
+            .with_attr("type", "get");
+        let data = n.encode().unwrap();
+        let decoded = Node::decode(&data).unwrap();
+        assert_eq!(decoded.tag, "iq");
+        assert_eq!(decoded.attrs.get("id").map(String::as_str), Some("1"));
+        assert_eq!(decoded.attrs.get("type").map(String::as_str), Some("get"));
+        assert!(matches!(decoded.content, NodeContent::Empty));
+    }
+
+    #[test]
+    fn encode_decode_roundtrip_with_children() {
+        let child = Node::new("item").with_attr("jid", "123@s.whatsapp.net");
+        let n = Node::new("list").with_children(vec![child]);
+        let data = n.encode().unwrap();
+        let decoded = Node::decode(&data).unwrap();
+        assert_eq!(decoded.tag, "list");
+        let nodes = decoded.get_children();
+        assert_eq!(nodes.len(), 1);
+        assert_eq!(nodes[0].tag, "item");
+        assert_eq!(
+            nodes[0].attrs.get("jid").map(String::as_str),
+            Some("123@s.whatsapp.net")
+        );
+    }
+
+    #[test]
+    fn encode_decode_roundtrip_bytes() {
+        let n = Node::new("payload").with_content(b"hello binary".to_vec());
+        let data = n.encode().unwrap();
+        let decoded = Node::decode(&data).unwrap();
+        assert_eq!(decoded.tag, "payload");
+        match &decoded.content {
+            NodeContent::Bytes(b) => assert_eq!(b.as_slice(), b"hello binary"),
+            _ => panic!("expected Bytes content"),
+        }
     }
 }

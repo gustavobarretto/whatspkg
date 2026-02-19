@@ -1,6 +1,6 @@
-# whatspkg
+# whatsapp-pkg
 
-Rust library for the **WhatsApp web multidevice API**, modeled after [whatsmeow](https://github.com/tulir/whatsmeow) (Go).
+Rust library for the **WhatsApp web multidevice API**.
 
 ## Relation to whatsmeow
 
@@ -17,20 +17,20 @@ The WhatsApp Web protocol (Noise handshake, binary nodes, E2E with Signal) is co
 - **Types**: `Jid`, `MessageId`, event enums (QR, Connected, Message, Receipt, etc.).
 - **Store**: `DeviceStore` trait + in-memory implementation; pluggable persistence.
 - **Client**: `Client::new(store)`, `connect()`, `disconnect()`, `add_event_handler()`, `generate_message_id()`, `complete_pairing()`.
-- **Binary**: `Node` type for protocol messages (encode/decode stubs for now).
+- **Binary**: `Node` type with full encode/decode. **Socket** (feature `full`): WebSocket + 3-byte framing; **Noise** (feature `full`): XX handshake and transport. **Client** uses transport when connected. **Pairing**: `pairing/` provides device identity verification (HMAC-SHA256), key generation (X25519, Ed25519), and signed identity storage; `complete_pairing()` persists keys and account blob.
 - **Errors**: Typed errors (`ConnectionError`, `PairingError`, `StoreError`, `SendError`).
 
 ## Usage
 
 ```toml
 [dependencies]
-whatspkg = "0.1"
+whatsapp-pkg = "0.1"
 tokio = { version = "1", features = ["full"] }
 ```
 
 ```rust
 use std::sync::Arc;
-use whatspkg::{Client, store::MemoryStore};
+use whatsapp_pkg::{Client, store::MemoryStore};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -39,9 +39,9 @@ async fn main() -> anyhow::Result<()> {
 
     client.add_event_handler(|evt| {
         match evt {
-            whatspkg::Event::Qr { codes } => println!("Scan QR: {:?}", codes),
-            whatspkg::Event::Connected => println!("Connected"),
-            whatspkg::Event::Message(m) => println!("Message from {}: {}", m.from, m.id),
+            whatsapp_pkg::Event::Qr { codes } => println!("Scan QR: {:?}", codes),
+            whatsapp_pkg::Event::Connected => println!("Connected"),
+            whatsapp_pkg::Event::Message(m) => println!("Message from {}: {}", m.from, m.id),
             _ => {}
         }
     }).await;
@@ -54,14 +54,14 @@ async fn main() -> anyhow::Result<()> {
 
 ## Module map (vs whatsmeow)
 
-| whatsmeow (Go)     | whatspkg (Rust)   |
+| whatsmeow (Go)     | whatsapp-pkg (Rust) |
 |-------------------|-------------------|
 | `client.go`       | `client/`         |
 | `types/jid.go`    | `types/jid.rs`    |
 | `types/events/`   | `events/mod.rs`   |
 | `store/`          | `store/`          |
 | `binary/`         | `binary/mod.rs`   |
-| `socket/`         | (future)          |
+| `socket/`         | `socket/` (feature `full`) |
 | `send.go`         | `client/send.rs`  |
 
 ## To-Do (full implementation)
@@ -70,13 +70,13 @@ The following list is need to implement to reach full feature. Items are ordered
 
 | Area | Task | Reference (whatsmeow) | Notes |
 |------|------|----------------------|--------|
-| **Binary protocol** | Implement `Node::encode()` and `Node::decode()` for the custom binary XML-like format. | `binary/` | Required for all wire communication. |
-| **Socket layer** | Add WebSocket client (e.g. `tokio-tungstenite`) and frame binary nodes over the connection. | `socket/` | Connects to WhatsApp Web endpoints. |
-| **Noise protocol** | Implement Noise handshake and transport; encrypt/decrypt frames before/after WebSocket. | `socket/`, handshake | Use a Noise crate (e.g. `snow`) compatible with WhatsApp’s pattern. |
-| **Pairing crypto** | Complete `complete_pairing()`: verify device identity (HMAC/signatures), generate device signature, persist identity. | `pair.go`, `handshake.go`, `util/keys` | Needs ECC/signing (e.g. X25519, Ed25519) and HMAC. |
+| **Binary protocol** | Implement `Node::encode()` and `Node::decode()` for the custom binary XML-like format. | `binary/` | Done. |
+| **Socket layer** | Add WebSocket client (e.g. `tokio-tungstenite`) and frame binary nodes over the connection. | `socket/` | Done (feature `full`). |
+| **Noise protocol** | Implement Noise handshake and transport; encrypt/decrypt frames before/after WebSocket. | `socket/`, handshake | Done (feature `full`, `snow`). |
+| **Pairing crypto** | Complete `complete_pairing()`: verify device identity (HMAC/signatures), generate device signature, persist identity. | `pair.go`, `handshake.go`, `util/keys` | Done: HMAC verify, X25519/Ed25519 keys, signed identity in `pairing/`. |
 | **Signal / E2E** | Integrate Signal protocol: session setup, prekeys, identity store, encrypt/decrypt message payloads. | `go.mau.fi/libsignal`, whatsmeow usage | Use a Rust Signal impl or bindings; store identities per `store::DeviceStore`. |
 | **Protobuf** | Add WhatsApp protobuf definitions (waE2E, waWeb, etc.), generate Rust with `prost` (or similar). | `proto/` | Needed for message content, app state, and server nodes. |
-| **Real connect** | Wire socket + Noise + binary nodes into `Client`: open connection, handle stream, emit Connected / Disconnected. | `client.go`, `connectionevents.go` | Replace stub `connect()` / `send_node()`. |
+| **Real connect** | Wire socket + Noise + binary nodes into `Client`: open connection, handle stream, emit Connected / Disconnected. | `client.go`, `connectionevents.go` | Done (feature `full`: connect does WebSocket+Noise when session exists; `send_node()` uses transport). |
 | **Real pairing** | Emit real QR payloads from server; handle pair-device / pair-success; call `complete_pairing()` with parsed data. | `pair.go`, `qrchan.go` | Depends on binary + socket + pairing crypto. |
 | **Send message** | Implement `send_message()` over the wire: build E2E message, send node, wait for ack. | `send.go`, `message.go` | Depends on Signal, binary, socket. |
 | **Receive messages** | Decode incoming nodes, decrypt E2E payloads, emit `Event::Message` (and related). | `message.go`, handlers in `client.go` | Depends on binary, socket, Signal, protos. |
@@ -103,6 +103,19 @@ To **require approval** (and ensure **only admins** can approve):
    - Enable **Require review from Code Owners**. Merges then require approval from someone listed in `CODEOWNERS` (your admins).
    - Optionally enable **Require status checks to pass** and select **Build & test** and **Version incremented**.
    - Leave **Do not allow bypassing the above settings** with no bypass list so even admins must use a PR.
+
+## Repo setup (rename and remote)
+
+If you renamed the GitHub repo to **whatsapp-pkg** and want to match locally:
+
+1. **Update git remote** (replace `YOUR_USERNAME` with your GitHub username):
+   ```bash
+   git remote set-url origin https://github.com/YOUR_USERNAME/whatsapp-pkg.git
+   ```
+2. **Rename the project directory** to `whatsapp-pkg` (optional):
+   - Windows: rename the folder in Explorer, or `ren whatspkg whatsapp-pkg` in the parent directory.
+   - macOS/Linux: `mv whatspkg whatsapp-pkg` in the parent directory.
+3. In **Cargo.toml**, set `repository = "https://github.com/YOUR_USERNAME/whatsapp-pkg"` so it points to your repo.
 
 ## License
 

@@ -1,4 +1,4 @@
-//! Event types emitted by the client (mirrors whatsmeow types/events).
+//! Event types emitted by the client.
 
 use crate::types::Jid;
 use std::time::Duration;
@@ -93,7 +93,7 @@ pub struct ReceiptEvent {
     pub is_from_me: bool,
 }
 
-/// Connect failure reason (whatsmeow ConnectFailureReason).
+/// Connect failure reason.
 #[derive(Clone, Debug, Copy, PartialEq, Eq)]
 #[repr(i32)]
 pub enum ConnectFailureReason {
@@ -142,7 +142,7 @@ impl ConnectFailureReason {
     }
 }
 
-/// Temporary ban reason (whatsmeow TempBanReason).
+/// Temporary ban reason.
 #[derive(Clone, Debug, Copy, PartialEq, Eq)]
 #[repr(i32)]
 pub enum TempBanReason {

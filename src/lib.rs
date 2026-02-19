@@ -1,6 +1,6 @@
-//! # whatspkg
+//! # whatsapp-pkg
 //!
-//! Rust library for the WhatsApp web multidevice API, modeled after [whatsmeow](https://github.com/tulir/whatsmeow).
+//! Rust library for the WhatsApp web multidevice API.
 //!
 //! ## Features
 //!
@@ -16,7 +16,7 @@
 //!
 //! ```ignore
 //! use std::sync::Arc;
-//! use whatspkg::{Client, store::MemoryStore};
+//! use whatsapp_pkg::{Client, store::MemoryStore};
 //!
 //! #[tokio::main]
 //! async fn main() -> anyhow::Result<()> {
@@ -32,11 +32,19 @@ pub mod binary;
 pub mod client;
 pub mod error;
 pub mod events;
+pub mod pairing;
+pub mod socket;
 pub mod store;
+pub mod transport;
 pub mod types;
 
-pub use client::{Client, SendRequestExtra, SendResponse};
+pub use client::{Client, CompletePairingParams, SendRequestExtra, SendResponse};
 pub use error::{Error, Result};
 pub use events::Event;
-pub use store::{DeviceStore, Store};
+pub use pairing::{
+    generate_pairing_keys, sign_device_identity, verify_device_identity, verify_signed_identity,
+    PairingKeys, VerifiedIdentity,
+};
+pub use store::{Device, DeviceStore, Store};
+pub use transport::Transport;
 pub use types::{Jid, MessageId};

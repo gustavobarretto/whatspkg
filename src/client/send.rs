@@ -1,9 +1,9 @@
-//! Send message types (mirrors whatsmeow SendResponse, SendRequestExtra).
+//! Send message types.
 
 use crate::types::{Jid, MessageId};
 use std::time::SystemTime;
 
-/// Response from sending a message (whatsmeow SendResponse).
+/// Response from sending a message.
 #[derive(Clone, Debug)]
 pub struct SendResponse {
     pub timestamp: SystemTime,
@@ -12,7 +12,7 @@ pub struct SendResponse {
     pub sender: Option<Jid>,
 }
 
-/// Optional parameters for SendMessage (whatsmeow SendRequestExtra).
+/// Optional parameters for SendMessage.
 #[derive(Clone, Debug, Default)]
 pub struct SendRequestExtra {
     pub id: Option<MessageId>,

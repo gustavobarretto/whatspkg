@@ -3,7 +3,7 @@
 //! Run with: `cargo run --example basic`
 
 use std::sync::Arc;
-use whatspkg::{store::MemoryStore, Client};
+use whatsapp_pkg::{store::MemoryStore, Client};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -14,19 +14,19 @@ async fn main() -> anyhow::Result<()> {
 
     client
         .add_event_handler(|evt| match evt {
-            whatspkg::Event::Qr { codes } => {
+            whatsapp_pkg::Event::Qr { codes } => {
                 println!(
                     "[Event] QR codes (scan with WhatsApp Linked Devices): {:?}",
                     codes
                 );
             }
-            whatspkg::Event::Connected => {
+            whatsapp_pkg::Event::Connected => {
                 println!("[Event] Connected and logged in.");
             }
-            whatspkg::Event::PairSuccess { id, platform, .. } => {
+            whatsapp_pkg::Event::PairSuccess { id, platform, .. } => {
                 println!("[Event] Pair success: {} on {}", id, platform);
             }
-            whatspkg::Event::Disconnected { reason } => {
+            whatsapp_pkg::Event::Disconnected { reason } => {
                 println!("[Event] Disconnected: {}", reason);
             }
             _ => {}

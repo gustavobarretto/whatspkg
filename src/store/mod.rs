@@ -1,4 +1,4 @@
-//! Device/session store (mirrors whatsmeow store).
+//! Device/session store.
 
 mod memory;
 
@@ -8,7 +8,7 @@ use crate::types::Jid;
 use async_trait::async_trait;
 use std::sync::Arc;
 
-/// Device identity and keys for one linked device (whatsmeow store.Device).
+/// Device identity and keys for one linked device.
 #[derive(Clone, Debug, Default)]
 pub struct Device {
     /// Our JID after pairing (None if not paired).
@@ -37,7 +37,7 @@ impl Device {
     }
 }
 
-/// Store trait: persist and load device state (like whatsmeow store.Container + Device).
+/// Store trait: persist and load device state.
 #[async_trait]
 pub trait DeviceStore: Send + Sync {
     /// Get the first (or only) device. Used to create a client.

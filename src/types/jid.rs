@@ -1,7 +1,7 @@
 use std::fmt;
 use std::str::FromStr;
 
-/// Known JID servers on WhatsApp (mirrors whatsmeow types).
+/// Known JID servers on WhatsApp.
 pub const DEFAULT_USER_SERVER: &str = "s.whatsapp.net";
 pub const GROUP_SERVER: &str = "g.us";
 #[allow(dead_code)]
@@ -14,7 +14,7 @@ pub const NEWSLETTER_SERVER: &str = "newsletter";
 
 /// JID represents a WhatsApp user/entity ID (user@server or AD-JID).
 ///
-/// Mirrors [whatsmeow types.JID](https://pkg.go.dev/go.mau.fi/whatsmeow/types#JID).
+/// JID (user/group/server identifier).
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Jid {
     pub user: String,

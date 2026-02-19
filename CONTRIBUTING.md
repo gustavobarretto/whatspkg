@@ -1,4 +1,4 @@
-# Contributing to whatspkg
+# Contributing to whatsapp-pkg
 
 Thanks for your interest in helping complete this library. The codebase is structured to mirror [whatsmeow](https://github.com/tulir/whatsmeow); the main work is implementing the protocol and wiring it into the existing types and client.
 
@@ -35,22 +35,4 @@ Pick an item that matches your skills (e.g. binary format, crypto, async I/O) an
 
 - Run `cargo fmt` and `cargo clippy` before pushing. CI enforces this.
 - Prefer the existing patterns: `crate::Result`, typed errors, async/await with Tokio.
-- When adding protocol or crypto, add references (e.g. whatsmeow file or commit) in comments or PR description so others can verify behavior.
-
-## Reference: whatsmeow
-
-Use [whatsmeow](https://github.com/tulir/whatsmeow) as the reference implementation:
-
-- **Binary protocol**: `binary/` (reader/writer, node encoding).
-- **Socket**: `socket/` (Noise handshake, framing).
-- **Pairing**: `pair.go`, `pair-code.go`, `handshake.go`.
-- **Send/receive**: `send.go`, `message.go`, `receipt.go`.
-- **Store**: `store/` (device, identity, session).
-- **Protos**: `proto/` (`.proto` or generated Go; you’ll need Rust equivalents, e.g. with `prost`).
-
-If you’re unsure how something should behave, check the corresponding whatsmeow code and document the mapping in your PR.
-
-## Questions
-
-- Open a **Discussion** or **Issue** for design questions or “how do I…”.
-- For protocol/format details, whatsmeow’s [WhatsApp protocol Q&A](https://github.com/tulir/whatsmeow/discussions/categories/whatsapp-protocol-q-a) may also help.
+- When adding protocol or crypto, add references in comments or PR description so others can verify behavior.
