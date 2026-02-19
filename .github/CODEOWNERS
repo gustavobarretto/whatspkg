@@ -1,0 +1,5 @@
+# Only these people can approve PRs when "Require review from Code Owners" is enabled.
+# Replace with your GitHub username(s). One owner per line.
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+* @YOUR_GITHUB_USERNAME

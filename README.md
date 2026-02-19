@@ -95,12 +95,14 @@ See **[CONTRIBUTING.md](CONTRIBUTING.md)** for how to contribute and where to st
 - **Build & test**: `cargo build`, `cargo test`, `cargo fmt --check`, `cargo clippy`
 - **Version bump**: When the PR targets `main`/`master`, the version in `Cargo.toml` must be **greater** than the base branch (e.g. `0.1.0` → `0.1.1`). The workflow fails if the version is unchanged or lower.
 
-To **require approval** before merging:
+To **require approval** (and ensure **only admins** can approve):
 
-1. GitHub repo → **Settings** → **Branches**
-2. **Add branch protection rule** (or edit existing) for `main` (or `master`)
-3. Enable **Require a pull request before merging** and set **Required number of approvals** (e.g. 1)
-4. Optionally enable **Require status checks to pass** and select **Build & test** and **Version incremented** so merge is only allowed when CI passes
+1. **Code owners** – Edit [`.github/CODEOWNERS`](.github/CODEOWNERS) and replace `@YOUR_GITHUB_USERNAME` with your GitHub username (or one per line for multiple admins). Only these accounts will count as valid reviewers when the rule below is enabled.
+2. **Branch protection** – GitHub repo → **Settings** → **Branches** → add or edit the rule for `main` (or `master`):
+   - Enable **Require a pull request before merging** and set **Required number of approvals** (e.g. 1).
+   - Enable **Require review from Code Owners**. Merges then require approval from someone listed in `CODEOWNERS` (your admins).
+   - Optionally enable **Require status checks to pass** and select **Build & test** and **Version incremented**.
+   - Leave **Do not allow bypassing the above settings** with no bypass list so even admins must use a PR.
 
 ## License
 
